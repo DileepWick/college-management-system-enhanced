@@ -4,7 +4,11 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
-const { generateSecureEmployeeId } = require("../../utils/idGenerator");
+const {
+  generateSecureEmployeeId,
+  generateResetToken,
+  hashToken,
+} = require("../../utils/idGenerator");
 
 const loginFacultyController = async (req, res) => {
   try {
@@ -202,25 +206,33 @@ const sendFacultyResetPasswordEmail = async (req, res) => {
     }
 
     const user = await facultyDetails.findOne({ email });
+
+    // OWASP recommendation: Prevent user enumeration with generic response
     if (!user) {
-      return ApiResponse.notFound("No Faculty Found").send(res);
+      return ApiResponse.success(
+        null,
+        "If an account with that email exists, a password reset link has been sent."
+      ).send(res);
     }
 
-    const resetTkn = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "10m",
-    });
+    const { rawToken, tokenHash } = generateResetToken();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await resetToken.deleteMany({ type: "FacultyDetails", userId: user._id });
 
-    const resetId = await resetToken.create({
-      resetToken: resetTkn,
+    await resetToken.create({
+      tokenHash,
+      expiresAt,
       type: "FacultyDetails",
       userId: user._id,
     });
 
-    await sendResetMail(user.email, resetId._id, "faculty");
+    await sendResetMail(user.email, rawToken, "faculty");
 
-    return ApiResponse.success(null, "Reset Mail Sent Successfully").send(res);
+    return ApiResponse.success(
+      null,
+      "If an account with that email exists, a password reset link has been sent."
+    ).send(res);
   } catch (error) {
     console.error("Forgot Password Error: ", error);
     return ApiResponse.internalServerError().send(res);
@@ -233,35 +245,48 @@ const updateFacultyPasswordHandler = async (req, res) => {
     const { password } = req.body;
 
     if (!resetId || !password) {
-      return ApiResponse.badRequest("Password and ResetId are required").send(
-        res
-      );
+      return ApiResponse.badRequest(
+        "Password and Reset Token are required"
+      ).send(res);
     }
 
-    const resetTkn = await resetToken.findById(resetId);
-    if (!resetTkn) {
-      return ApiResponse.notFound("No Reset Request Found").send(res);
+    if (password.length < 8) {
+      return ApiResponse.badRequest(
+        "Password must be at least 8 characters long"
+      ).send(res);
     }
 
-    const verifyToken = jwt.verify(resetTkn.resetToken, process.env.JWT_SECRET);
-    if (!verifyToken) {
-      return ApiResponse.unauthorized("Token Expired or Invalid").send(res);
+    const tokenHash = hashToken(resetId);
+
+    const resetRecord = await resetToken.findOne({
+      tokenHash,
+      type: "FacultyDetails",
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!resetRecord) {
+      return ApiResponse.badRequest(
+        "Invalid or expired password reset link"
+      ).send(res);
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    await facultyDetails.findByIdAndUpdate(verifyToken._id, {
+    await facultyDetails.findByIdAndUpdate(resetRecord.userId, {
       password: hashedPassword,
     });
 
+    // Single-use: delete used token immediately
     await resetToken.deleteMany({
       type: "FacultyDetails",
-      userId: verifyToken._id,
+      userId: resetRecord.userId,
     });
 
-    return ApiResponse.success(null, "Password Updated Successfully!").send(
-      res
-    );
+    return ApiResponse.success(
+      null,
+      "Password Updated Successfully!"
+    ).send(res);
   } catch (error) {
     console.error("Password Update Error: ", error);
     return ApiResponse.internalServerError().send(res);
