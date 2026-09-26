@@ -57,17 +57,34 @@ const getAllDetailsController = async (req, res) => {
 
 const registerStudentController = async (req, res) => {
   try {
+    const { email, phone } = req.body;
     const profile = req.file.filename;
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return ApiResponse.badRequest("Invalid email format").send(res);
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      return ApiResponse.badRequest("Phone number must be 10 digits").send(res);
+    }
+
+    const existing = await studentDetails.findOne({
+      $or: [{ phone }, { email }],
+    });
+    if (existing) {
+      return ApiResponse.conflict(
+        "Student with these details already exists"
+      ).send(res);
+    }
+
     const enrollmentNo = generateSecureEnrollmentNo();
-    const email = `${enrollmentNo}@gmail.com`;
 
     const user = await studentDetails.create({
       ...req.body,
       profile,
       password: "student123",
-      email,
       enrollmentNo,
+      googleId: undefined,
     });
 
     const sanitizedUser = await studentDetails
@@ -108,6 +125,7 @@ const updateDetailsController = async (req, res) => {
     }
 
     const updateData = { ...req.body };
+    delete updateData.googleId;
     const { email, phone, password, enrollmentNo } = updateData;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -143,6 +161,14 @@ const updateDetailsController = async (req, res) => {
 
       if (existingStudent) {
         return ApiResponse.conflict("Email already in use").send(res);
+      }
+
+      // A new email must be re-linked to its own Google account
+      const current = await studentDetails
+        .findById(req.params.id)
+        .select("email");
+      if (current && current.email !== email) {
+        updateData.$unset = { googleId: 1 };
       }
     }
 
