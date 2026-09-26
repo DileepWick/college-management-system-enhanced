@@ -7,6 +7,7 @@ import { setUserToken } from "../redux/actions";
 import { useDispatch } from "react-redux";
 import CustomButton from "../components/CustomButton";
 import axiosWrapper from "../utils/AxiosWrapper";
+import { GoogleLogin } from "@react-oauth/google";
 const USER_TYPES = {
   STUDENT: "Student",
   FACULTY: "Faculty",
@@ -105,6 +106,13 @@ const Login = () => {
     setSearchParams({ type: userType });
   };
 
+  const completeLogin = (token) => {
+    localStorage.setItem("userToken", token);
+    localStorage.setItem("userType", selected);
+    dispatch(setUserToken(token));
+    navigate(`/${selected.toLowerCase()}`);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -122,15 +130,29 @@ const Login = () => {
         }
       );
 
-      const { token } = response.data.data;
-      localStorage.setItem("userToken", token);
-      localStorage.setItem("userType", selected);
-      dispatch(setUserToken(token));
-      navigate(`/${selected.toLowerCase()}`);
+      completeLogin(response.data.data.token);
     } catch (error) {
       toast.dismiss();
       console.error(error);
       toast.error(error.response?.data?.message || "Login failed");
+    }
+  };
+
+  const handleGoogleSuccess = async ({ credential }) => {
+    try {
+      const response = await axiosWrapper.post(
+        "/auth/google",
+        { credential, role: selected.toLowerCase() },
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      completeLogin(response.data.data.token);
+    } catch (error) {
+      toast.dismiss();
+      console.error(error);
+      toast.error(error.response?.data?.message || "Google login failed");
     }
   };
 
@@ -161,6 +183,19 @@ const Login = () => {
           formData={formData}
           setFormData={setFormData}
         />
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-gray-300" />
+          <span className="text-sm text-gray-500">or</span>
+          <div className="flex-1 h-px bg-gray-300" />
+        </div>
+        <div className="flex justify-center">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => toast.error("Google login failed")}
+            text="signin_with"
+            shape="pill"
+          />
+        </div>
       </div>
       <Toaster position="bottom-center" />
     </div>

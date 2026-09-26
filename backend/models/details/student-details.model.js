@@ -86,6 +86,9 @@ const studentDetailsSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    googleId: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
