@@ -1,0 +1,16 @@
+{
+  "name": "college-management-system-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Secure College Management System - Root Workspace",
+  "scripts": {
+    "prepare": "husky",
+    "check:backend": "node --check backend/index.js backend/admin-seeder.js",
+    "check": "npm run check:backend"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7"
+  }
+}
