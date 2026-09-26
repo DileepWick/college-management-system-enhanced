@@ -5,6 +5,7 @@ const studentDetailsSchema = new mongoose.Schema(
     enrollmentNo: {
       type: Number,
       required: true,
+      unique: true,
     },
     firstName: {
       type: String,

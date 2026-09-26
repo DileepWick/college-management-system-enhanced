@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
+const { generateSecureEmployeeId } = require("../../utils/idGenerator");
 
 const loginAdminController = async (req, res, next) => {
   try {
@@ -47,9 +48,7 @@ const getAllDetailsController = async (req, res, next) => {
   }
 };
 
-const generateEmployeeId = () => {
-  return Math.floor(100000 + Math.random() * 900000);
-};
+
 
 const registerAdminController = async (req, res, next) => {
   try {
@@ -75,7 +74,7 @@ const registerAdminController = async (req, res, next) => {
       ).send(res);
     }
 
-    const employeeId = generateEmployeeId();
+    const employeeId = generateSecureEmployeeId();
 
     const user = await adminDetails.create({
       ...req.body,
