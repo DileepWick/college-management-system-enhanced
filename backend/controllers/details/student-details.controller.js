@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
+const { generateSecureEnrollmentNo } = require("../../utils/idGenerator");
 
 const loginStudentController = async (req, res) => {
   try {
@@ -54,7 +55,7 @@ const registerStudentController = async (req, res) => {
   try {
     const profile = req.file.filename;
 
-    const enrollmentNo = Math.floor(100000 + Math.random() * 900000);
+    const enrollmentNo = generateSecureEnrollmentNo();
     const email = `${enrollmentNo}@gmail.com`;
 
     const user = await studentDetails.create({

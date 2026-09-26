@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
+const { generateSecureEmployeeId } = require("../../utils/idGenerator");
 
 const loginFacultyController = async (req, res) => {
   try {
@@ -43,9 +44,7 @@ const getAllFacultyController = async (req, res) => {
   }
 };
 
-const generateEmployeeId = () => {
-  return Math.floor(100000 + Math.random() * 900000);
-};
+
 
 const registerFacultyController = async (req, res) => {
   try {
@@ -69,7 +68,7 @@ const registerFacultyController = async (req, res) => {
       ).send(res);
     }
 
-    const employeeId = generateEmployeeId();
+    const employeeId = generateSecureEmployeeId();
 
     const user = await facultyDetails.create({
       ...req.body,
