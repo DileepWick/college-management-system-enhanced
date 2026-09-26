@@ -4,7 +4,11 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
-const { generateSecureEmployeeId } = require("../../utils/idGenerator");
+const {
+  generateSecureEmployeeId,
+  generateResetToken,
+  hashToken,
+} = require("../../utils/idGenerator");
 
 const loginAdminController = async (req, res, next) => {
   try {
@@ -217,33 +221,35 @@ const sendForgetPasswordEmail = async (req, res) => {
 
     const user = await adminDetails.findOne({ email });
 
+    // OWASP recommendation: Prevent user enumeration with generic response
     if (!user) {
-      return ApiResponse.notFound("No Admin Found").send(res);
+      return ApiResponse.success(
+        null,
+        "If an account with that email exists, a password reset link has been sent."
+      ).send(res);
     }
-    const resetTkn = jwt.sign(
-      {
-        _id: user._id,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "10m",
-      }
-    );
+
+    const { rawToken, tokenHash } = generateResetToken();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await resetToken.deleteMany({
       type: "AdminDetails",
       userId: user._id,
     });
 
-    const resetId = await resetToken.create({
-      resetToken: resetTkn,
+    await resetToken.create({
+      tokenHash,
+      expiresAt,
       type: "AdminDetails",
       userId: user._id,
     });
 
-    await sendResetMail(user.email, resetId._id, "admin");
+    await sendResetMail(user.email, rawToken, "admin");
 
-    return ApiResponse.success(null, "Reset Mail Send Successful").send(res);
+    return ApiResponse.success(
+      null,
+      "If an account with that email exists, a password reset link has been sent."
+    ).send(res);
   } catch (error) {
     console.error("Delete Details Error: ", error);
     return ApiResponse.internalServerError().send(res);
@@ -254,43 +260,49 @@ const updatePasswordHandler = async (req, res) => {
   try {
     const { resetId } = req.params;
     const { password } = req.body;
+
     if (!resetId || !password) {
-      return ApiResponse.badRequest("Password and ResetId is Required").send(
-        res
-      );
+      return ApiResponse.badRequest(
+        "Password and Reset Token are required"
+      ).send(res);
     }
 
-    const resetTkn = await resetToken.findById(resetId);
-
-    if (!resetTkn) {
-      return ApiResponse.notFound("No Reset Request Found").send(res);
+    if (password.length < 8) {
+      return ApiResponse.badRequest(
+        "Password must be at least 8 characters long"
+      ).send(res);
     }
 
-    const verifyToken = await jwt.verify(
-      resetTkn.resetToken,
-      process.env.JWT_SECRET
-    );
+    const tokenHash = hashToken(resetId);
 
-    if (!verifyToken) {
-      return ApiResponse.notFound("Token Expired").send(res);
+    const resetRecord = await resetToken.findOne({
+      tokenHash,
+      type: "AdminDetails",
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!resetRecord) {
+      return ApiResponse.badRequest(
+        "Invalid or expired password reset link"
+      ).send(res);
     }
 
     const salt = await bcrypt.genSalt(10);
-
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    await adminDetails.findByIdAndUpdate(verifyToken._id, {
+    await adminDetails.findByIdAndUpdate(resetRecord.userId, {
       password: hashedPassword,
     });
 
+    // Single-use: delete used token immediately
     await resetToken.deleteMany({
       type: "AdminDetails",
-      userId: verifyToken._id,
+      userId: resetRecord.userId,
     });
 
-    return ApiResponse.success(null, "Password Updated!").send(res);
+    return ApiResponse.success(null, "Password Updated Successfully!").send(res);
   } catch (error) {
-    console.error("Delete Details Error: ", error);
+    console.error("Update Password Error: ", error);
     return ApiResponse.internalServerError().send(res);
   }
 };
