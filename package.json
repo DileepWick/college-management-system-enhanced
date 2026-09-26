@@ -5,6 +5,8 @@
   "description": "Secure College Management System - Root Workspace",
   "scripts": {
     "prepare": "husky",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
     "check:backend": "node --check backend/index.js backend/admin-seeder.js",
     "check": "npm run check:backend"
   },
