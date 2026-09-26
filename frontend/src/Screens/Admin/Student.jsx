@@ -31,6 +31,7 @@ const Student = () => {
     firstName: "",
     middleName: "",
     lastName: "",
+    email: "",
     phone: "",
     semester: "",
     branchId: "",
@@ -224,6 +225,7 @@ const Student = () => {
       firstName: student.firstName || "",
       middleName: student.middleName || "",
       lastName: student.lastName || "",
+      email: student.email || "",
       phone: student.phone || "",
       semester: student.semester || "",
       branchId: student.branchId?._id || "",
@@ -280,6 +282,7 @@ const Student = () => {
       firstName: "",
       middleName: "",
       lastName: "",
+      email: "",
       phone: "",
       semester: "",
       branchId: "",
@@ -553,6 +556,21 @@ const Student = () => {
                     value={formData.lastName}
                     onChange={(e) =>
                       handleFormInputChange("lastName", e.target.value)
+                    }
+                    className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      handleFormInputChange("email", e.target.value)
                     }
                     className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
