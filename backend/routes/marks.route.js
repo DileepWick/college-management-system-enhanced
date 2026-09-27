@@ -8,14 +8,19 @@ const {
   getStudentMarksController,
 } = require("../controllers/marks.controller");
 const auth = require("../middlewares/auth.middleware");
+const authorize = require("../middlewares/authorize.middleware");
 const router = express.Router();
 const upload = require("../middlewares/multer.middleware");
 
-router.get("/", auth, getMarksController);
-router.get("/students", auth, getStudentsWithMarksController);
-router.get("/student", auth, getStudentMarksController);
-router.post("/", auth, addMarksController);
-router.post("/bulk", auth, addBulkMarksController);
-router.delete("/:id", auth, deleteMarksController);
+// Students only ever read their own marks (/student uses req.userId);
+// every route that takes a student ID from the request is staff-only
+const staffOnly = authorize("admin", "faculty");
+
+router.get("/", auth, staffOnly, getMarksController);
+router.get("/students", auth, staffOnly, getStudentsWithMarksController);
+router.get("/student", auth, authorize("student"), getStudentMarksController);
+router.post("/", auth, staffOnly, addMarksController);
+router.post("/bulk", auth, staffOnly, addBulkMarksController);
+router.delete("/:id", auth, staffOnly, deleteMarksController);
 
 module.exports = router;

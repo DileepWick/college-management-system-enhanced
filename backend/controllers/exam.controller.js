@@ -1,5 +1,9 @@
 const Exam = require("../models/exam.model");
 const ApiResponse = require("../utils/ApiResponse");
+const { pickFields } = require("../utils/pickFields");
+
+// timetableLink is only ever set from the uploaded file, never from the body
+const EXAM_FIELDS = ["name", "date", "semester", "examType", "totalMarks"];
 
 const getAllExamsController = async (req, res) => {
   try {
@@ -24,7 +28,7 @@ const getAllExamsController = async (req, res) => {
 
 const addExamController = async (req, res) => {
   try {
-    const formData = req.body;
+    const formData = pickFields(req.body, EXAM_FIELDS);
     if (req.file) {
       formData.timetableLink = req.file.filename;
     }
@@ -37,7 +41,7 @@ const addExamController = async (req, res) => {
 
 const updateExamController = async (req, res) => {
   try {
-    const formData = req.body;
+    const formData = pickFields(req.body, EXAM_FIELDS);
     if (req.file) {
       formData.timetableLink = req.file.filename;
     }

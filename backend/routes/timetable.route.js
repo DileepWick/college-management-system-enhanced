@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const upload = require("../middlewares/multer.middleware");
 const auth = require("../middlewares/auth.middleware");
+const authorize = require("../middlewares/authorize.middleware");
 const {
   getTimetableController,
   addTimetableController,
@@ -12,10 +13,27 @@ const {
 
 router.get("/", auth, getTimetableController);
 
-router.post("/", auth, upload.single("file"), addTimetableController);
+router.post(
+  "/",
+  auth,
+  authorize("admin", "faculty"),
+  upload.single("file"),
+  addTimetableController
+);
 
-router.put("/:id", auth, upload.single("file"), updateTimetableController);
+router.put(
+  "/:id",
+  auth,
+  authorize("admin", "faculty"),
+  upload.single("file"),
+  updateTimetableController
+);
 
-router.delete("/:id", auth, deleteTimetableController);
+router.delete(
+  "/:id",
+  auth,
+  authorize("admin", "faculty"),
+  deleteTimetableController
+);
 
 module.exports = router;

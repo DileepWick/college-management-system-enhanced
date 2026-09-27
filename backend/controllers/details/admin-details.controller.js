@@ -9,6 +9,28 @@ const {
   generateResetToken,
   hashToken,
 } = require("../../utils/idGenerator");
+const { pickProfileFields } = require("../../utils/pickFields");
+
+// Fields an admin may set from the request body. Privilege and server-managed
+// fields (isSuperAdmin, employeeId, password, googleId, profile, _id) are never copied.
+const ADMIN_PROFILE_FIELDS = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "address",
+  "city",
+  "state",
+  "pincode",
+  "country",
+  "gender",
+  "dob",
+  "designation",
+  "joiningDate",
+  "salary",
+  "status",
+  "bloodGroup",
+];
 
 const loginAdminController = async (req, res, next) => {
   try {
@@ -26,9 +48,11 @@ const loginAdminController = async (req, res, next) => {
       return ApiResponse.unauthorized("Invalid password").send(res);
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { userId: user._id, role: "admin" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     return ApiResponse.success({ token }, "Login successful").send(res);
   } catch (error) {
@@ -81,7 +105,7 @@ const registerAdminController = async (req, res, next) => {
     const employeeId = generateSecureEmployeeId();
 
     const user = await adminDetails.create({
-      ...req.body,
+      ...pickProfileFields(req.body, ADMIN_PROFILE_FIELDS),
       employeeId,
       profile,
       password: "admin123",
@@ -121,8 +145,8 @@ const updateDetailsController = async (req, res, next) => {
       return ApiResponse.badRequest("Admin ID is required").send(res);
     }
 
-    const updateData = { ...req.body };
-    const { email, phone, password } = updateData;
+    const updateData = pickProfileFields(req.body, ADMIN_PROFILE_FIELDS);
+    const { email, phone } = updateData;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return ApiResponse.badRequest("Invalid email format").send(res);
@@ -130,12 +154,6 @@ const updateDetailsController = async (req, res, next) => {
 
     if (phone && !/^\d{10}$/.test(phone)) {
       return ApiResponse.badRequest("Phone number must be 10 digits").send(res);
-    }
-
-    if (password && password.length < 8) {
-      return ApiResponse.badRequest(
-        "Password must be at least 8 characters long"
-      ).send(res);
     }
 
     if (phone) {
@@ -158,11 +176,6 @@ const updateDetailsController = async (req, res, next) => {
       if (existingAdmin) {
         return ApiResponse.conflict("Email already in use").send(res);
       }
-    }
-
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
     }
 
     if (req.file) {
