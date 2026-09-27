@@ -63,6 +63,18 @@ app.use("/api/material", require("./routes/material.route"));
 app.use("/api/exam", require("./routes/exam.route"));
 app.use("/api/marks", require("./routes/marks.route"));
 
+// Centralized error handling middleware
+app.use((err, req, res, next) => {
+  if (err) {
+    console.error("Global Error Handler:", err.message);
+    const ApiResponse = require("./utils/ApiResponse");
+    return ApiResponse.badRequest(
+      err.message || "An unexpected error occurred"
+    ).send(res);
+  }
+  next();
+});
+
 app.listen(port, () => {
   console.log(`Server Listening On http://localhost:${port}`);
 });
