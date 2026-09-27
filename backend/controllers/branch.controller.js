@@ -1,16 +1,22 @@
 const Branch = require("../models/branch.model");
 const ApiResponse = require("../utils/ApiResponse");
+const { toSafeSearchPattern } = require("../utils/regexHelper");
 
 const getBranchController = async (req, res, next) => {
   try {
     const { search = "" } = req.query;
+    const safeSearch = toSafeSearchPattern(search, 50);
 
-    const branches = await Branch.find({
-      $or: [
-        { name: { $regex: search, $options: "i" } },
-        { branchId: { $regex: search, $options: "i" } },
-      ],
-    });
+    const query = safeSearch
+      ? {
+          $or: [
+            { name: { $regex: safeSearch, $options: "i" } },
+            { branchId: { $regex: safeSearch, $options: "i" } },
+          ],
+        }
+      : {};
+
+    const branches = await Branch.find(query);
     if (!branches || branches.length === 0) {
       return ApiResponse.error("No Branches Found", 404).send(res);
     }
