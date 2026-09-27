@@ -9,6 +9,29 @@ const {
   generateResetToken,
   hashToken,
 } = require("../../utils/idGenerator");
+const { pickProfileFields } = require("../../utils/pickFields");
+
+// Fields an admin may set from the request body. Server-managed fields
+// (enrollmentNo, password, googleId, profile, _id, timestamps) are never copied.
+const STUDENT_PROFILE_FIELDS = [
+  "firstName",
+  "middleName",
+  "lastName",
+  "email",
+  "phone",
+  "semester",
+  "branchId",
+  "gender",
+  "dob",
+  "address",
+  "city",
+  "state",
+  "pincode",
+  "country",
+  "status",
+  "bloodGroup",
+];
+
 const {
   toSafeSearchPattern,
   sanitizeSearchInput,
@@ -30,9 +53,11 @@ const loginStudentController = async (req, res) => {
       return ApiResponse.unauthorized("Invalid password").send(res);
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { userId: user._id, role: "student" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     return ApiResponse.success({ token }, "Login successful").send(res);
   } catch (error) {
@@ -84,11 +109,10 @@ const registerStudentController = async (req, res) => {
     const enrollmentNo = generateSecureEnrollmentNo();
 
     const user = await studentDetails.create({
-      ...req.body,
+      ...pickProfileFields(req.body, STUDENT_PROFILE_FIELDS),
       profile,
       password: "student123",
       enrollmentNo,
-      googleId: undefined,
     });
 
     const sanitizedUser = await studentDetails
@@ -128,9 +152,8 @@ const updateDetailsController = async (req, res) => {
       return ApiResponse.badRequest("Student ID is required").send(res);
     }
 
-    const updateData = { ...req.body };
-    delete updateData.googleId;
-    const { email, phone, password, enrollmentNo } = updateData;
+    const updateData = pickProfileFields(req.body, STUDENT_PROFILE_FIELDS);
+    const { email, phone } = updateData;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return ApiResponse.badRequest("Invalid email format").send(res);
@@ -138,12 +161,6 @@ const updateDetailsController = async (req, res) => {
 
     if (phone && !/^\d{10}$/.test(phone)) {
       return ApiResponse.badRequest("Phone number must be 10 digits").send(res);
-    }
-
-    if (password && password.length < 8) {
-      return ApiResponse.badRequest(
-        "Password must be at least 8 characters long"
-      ).send(res);
     }
 
     if (phone) {
@@ -174,24 +191,6 @@ const updateDetailsController = async (req, res) => {
       if (current && current.email !== email) {
         updateData.$unset = { googleId: 1 };
       }
-    }
-
-    if (enrollmentNo) {
-      const existingStudent = await studentDetails.findOne({
-        _id: { $ne: req.params.id },
-        enrollmentNo: enrollmentNo,
-      });
-
-      if (existingStudent) {
-        return ApiResponse.conflict("Enrollment number already in use").send(
-          res
-        );
-      }
-    }
-
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
     }
 
     if (req.file) {

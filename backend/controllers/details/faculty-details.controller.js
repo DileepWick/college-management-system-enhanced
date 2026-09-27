@@ -9,6 +9,29 @@ const {
   generateResetToken,
   hashToken,
 } = require("../../utils/idGenerator");
+const { pickProfileFields } = require("../../utils/pickFields");
+
+// Fields an admin may set from the request body. Server-managed fields
+// (employeeId, password, googleId, profile, _id, timestamps) are never copied.
+const FACULTY_PROFILE_FIELDS = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "address",
+  "city",
+  "state",
+  "pincode",
+  "country",
+  "gender",
+  "dob",
+  "designation",
+  "joiningDate",
+  "salary",
+  "status",
+  "bloodGroup",
+  "branchId",
+];
 
 const loginFacultyController = async (req, res) => {
   try {
@@ -24,9 +47,11 @@ const loginFacultyController = async (req, res) => {
       return ApiResponse.unauthorized("Invalid password").send(res);
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { userId: user._id, role: "faculty" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     return ApiResponse.success({ token }, "Login successful").send(res);
   } catch (error) {
@@ -75,7 +100,7 @@ const registerFacultyController = async (req, res) => {
     const employeeId = generateSecureEmployeeId();
 
     const user = await facultyDetails.create({
-      ...req.body,
+      ...pickProfileFields(req.body, FACULTY_PROFILE_FIELDS),
       employeeId,
       profile,
       password: "faculty123",
@@ -100,8 +125,8 @@ const updateFacultyController = async (req, res) => {
       return ApiResponse.badRequest("Faculty ID is required").send(res);
     }
 
-    const updateData = { ...req.body };
-    const { email, phone, password } = updateData;
+    const updateData = pickProfileFields(req.body, FACULTY_PROFILE_FIELDS);
+    const { email, phone } = updateData;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return ApiResponse.badRequest("Invalid email format").send(res);
@@ -109,12 +134,6 @@ const updateFacultyController = async (req, res) => {
 
     if (phone && !/^\d{10}$/.test(phone)) {
       return ApiResponse.badRequest("Phone number must be 10 digits").send(res);
-    }
-
-    if (password && password.length < 8) {
-      return ApiResponse.badRequest(
-        "Password must be at least 8 characters"
-      ).send(res);
     }
 
     if (email) {
@@ -135,11 +154,6 @@ const updateFacultyController = async (req, res) => {
       if (existing) {
         return ApiResponse.conflict("Phone number already in use").send(res);
       }
-    }
-
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
     }
 
     if (req.file) {

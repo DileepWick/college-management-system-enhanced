@@ -13,6 +13,7 @@ const {
 } = require("../../controllers/details/admin-details.controller");
 const { uploadImage } = require("../../middlewares/multer.middleware");
 const auth = require("../../middlewares/auth.middleware");
+const authorize = require("../../middlewares/authorize.middleware");
 const {
   loginLimiter,
   resetRequestLimiter,
@@ -21,13 +22,27 @@ const {
 
 router.post("/register", uploadImage.single("file"), registerAdminController);
 router.post("/login", loginLimiter, loginAdminController);
-router.get("/my-details", auth, getMyDetailsController);
+router.get("/my-details", auth, authorize("admin"), getMyDetailsController);
 
+router.get("/", auth, authorize("admin"), getAllDetailsController);
+router.patch(
+  "/:id",
+  auth,
+  authorize("admin"),
+  upload.single("file"),
+  updateDetailsController
+);
+router.delete("/:id", auth, authorize("admin"), deleteDetailsController);
 router.get("/", auth, getAllDetailsController);
 router.patch("/:id", auth, uploadImage.single("file"), updateDetailsController);
 router.delete("/:id", auth, deleteDetailsController);
 router.post("/forget-password", resetRequestLimiter, sendForgetPasswordEmail);
 router.post("/update-password/:resetId", resetSubmitLimiter, updatePasswordHandler);
-router.post("/change-password", auth, updateLoggedInPasswordController);
+router.post(
+  "/change-password",
+  auth,
+  authorize("admin"),
+  updateLoggedInPasswordController
+);
 
 module.exports = router;

@@ -1,15 +1,7 @@
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
 const ApiResponse = require("../utils/ApiResponse");
-const studentDetails = require("../models/details/student-details.model");
-const facultyDetails = require("../models/details/faculty-details.model");
-const adminDetails = require("../models/details/admin-details.model");
-
-const ROLE_MODELS = {
-  student: studentDetails,
-  faculty: facultyDetails,
-  admin: adminDetails,
-};
+const { ROLE_MODELS } = require("../utils/roles");
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -65,7 +57,7 @@ const googleLoginController = async (req, res) => {
       await Model.updateOne({ _id: user._id }, { $set: { googleId: payload.sub } });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user._id, role }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
 
