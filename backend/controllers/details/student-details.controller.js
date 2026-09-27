@@ -32,6 +32,11 @@ const STUDENT_PROFILE_FIELDS = [
   "bloodGroup",
 ];
 
+const {
+  toSafeSearchPattern,
+  sanitizeSearchInput,
+} = require("../../utils/regexHelper");
+
 const loginStudentController = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -340,23 +345,35 @@ const searchStudentsController = async (req, res) => {
     }
 
     if (enrollmentNo) {
-      query.enrollmentNo = enrollmentNo;
+      const sanitizedEnrollment = Number(enrollmentNo);
+      if (!isNaN(sanitizedEnrollment)) {
+        query.enrollmentNo = sanitizedEnrollment;
+      }
     }
 
     if (name) {
-      query.$or = [
-        { firstName: { $regex: name, $options: "i" } },
-        { middleName: { $regex: name, $options: "i" } },
-        { lastName: { $regex: name, $options: "i" } },
-      ];
+      const safeNamePattern = toSafeSearchPattern(name, 50);
+      if (safeNamePattern) {
+        query.$or = [
+          { firstName: { $regex: safeNamePattern, $options: "i" } },
+          { middleName: { $regex: safeNamePattern, $options: "i" } },
+          { lastName: { $regex: safeNamePattern, $options: "i" } },
+        ];
+      }
     }
 
     if (semester) {
-      query.semester = semester;
+      const sanitizedSemester = Number(semester);
+      if (!isNaN(sanitizedSemester)) {
+        query.semester = sanitizedSemester;
+      }
     }
 
     if (branch) {
-      query.branchId = branch;
+      const sanitizedBranch = sanitizeSearchInput(branch, 50);
+      if (sanitizedBranch) {
+        query.branchId = sanitizedBranch;
+      }
     }
 
     const students = await studentDetails

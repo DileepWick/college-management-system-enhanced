@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const upload = require("../middlewares/multer.middleware");
+const { uploadDocument } = require("../middlewares/multer.middleware");
 const auth = require("../middlewares/auth.middleware");
 const authorize = require("../middlewares/authorize.middleware");
 const {
@@ -27,5 +27,8 @@ router.put(
   updateMaterialController
 );
 router.delete("/:id", auth, authorize("faculty"), deleteMaterialController);
+router.post("/", auth, uploadDocument.single("file"), addMaterialController);
+router.put("/:id", auth, uploadDocument.single("file"), updateMaterialController);
+router.delete("/:id", auth, deleteMaterialController);
 
 module.exports = router;

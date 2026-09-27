@@ -8,7 +8,7 @@ const {
 const auth = require("../middlewares/auth.middleware");
 const authorize = require("../middlewares/authorize.middleware");
 const router = express.Router();
-const upload = require("../middlewares/multer.middleware");
+const { uploadSchedule } = require("../middlewares/multer.middleware");
 
 router.get("/", auth, getAllExamsController);
 router.post(
@@ -26,5 +26,9 @@ router.patch(
   updateExamController
 );
 router.delete("/:id", auth, authorize("admin", "faculty"), deleteExamController);
+
+router.post("/", auth, uploadSchedule.single("file"), addExamController);
+router.patch("/:id", auth, uploadSchedule.single("file"), updateExamController);
+router.delete("/:id", auth, deleteExamController);
 
 module.exports = router;

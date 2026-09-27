@@ -10,7 +10,6 @@ const {
 const auth = require("../middlewares/auth.middleware");
 const authorize = require("../middlewares/authorize.middleware");
 const router = express.Router();
-const upload = require("../middlewares/multer.middleware");
 
 // Students only ever read their own marks (/student uses req.userId);
 // every route that takes a student ID from the request is staff-only

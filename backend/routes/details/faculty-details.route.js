@@ -11,7 +11,7 @@ const {
   updateFacultyPasswordHandler,
   updateLoggedInPasswordController,
 } = require("../../controllers/details/faculty-details.controller");
-const upload = require("../../middlewares/multer.middleware");
+const { uploadImage } = require("../../middlewares/multer.middleware");
 const auth = require("../../middlewares/auth.middleware");
 const authorize = require("../../middlewares/authorize.middleware");
 const {
@@ -27,6 +27,8 @@ router.post(
   upload.single("file"),
   registerFacultyController
 );
+
+router.post("/register", uploadImage.single("file"), registerFacultyController);
 router.post("/login", loginLimiter, loginFacultyController);
 router.get(
   "/my-details",
@@ -44,6 +46,10 @@ router.patch(
   updateFacultyController
 );
 router.delete("/:id", auth, authorize("admin"), deleteFacultyController);
+
+router.get("/", auth, getAllFacultyController);
+router.patch("/:id", auth, uploadImage.single("file"), updateFacultyController);
+router.delete("/:id", auth, deleteFacultyController);
 router.post("/forget-password", resetRequestLimiter, sendFacultyResetPasswordEmail);
 router.post("/update-password/:resetId", resetSubmitLimiter, updateFacultyPasswordHandler);
 router.post(

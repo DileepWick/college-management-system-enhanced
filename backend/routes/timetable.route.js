@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const router = express.Router();
-const upload = require("../middlewares/multer.middleware");
+const { uploadSchedule } = require("../middlewares/multer.middleware");
 const auth = require("../middlewares/auth.middleware");
 const authorize = require("../middlewares/authorize.middleware");
 const {
@@ -28,6 +28,9 @@ router.put(
   upload.single("file"),
   updateTimetableController
 );
+router.post("/", auth, uploadSchedule.single("file"), addTimetableController);
+
+router.put("/:id", auth, uploadSchedule.single("file"), updateTimetableController);
 
 router.delete(
   "/:id",

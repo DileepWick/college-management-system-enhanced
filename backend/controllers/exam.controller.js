@@ -5,14 +5,35 @@ const { pickFields } = require("../utils/pickFields");
 // timetableLink is only ever set from the uploaded file, never from the body
 const EXAM_FIELDS = ["name", "date", "semester", "examType", "totalMarks"];
 
+const {
+  toSafeSearchPattern,
+  sanitizeSearchInput,
+} = require("../utils/regexHelper");
+
 const getAllExamsController = async (req, res) => {
   try {
     const { search = "", examType = "", semester = "" } = req.query;
 
     let query = {};
 
-    if (semester) query.semester = semester;
-    if (examType) query.examType = examType;
+    if (semester) {
+      const sanitizedSemester = Number(semester);
+      if (!isNaN(sanitizedSemester)) {
+        query.semester = sanitizedSemester;
+      }
+    }
+
+    if (examType) {
+      const sanitizedType = sanitizeSearchInput(examType, 20);
+      if (sanitizedType) {
+        query.examType = sanitizedType;
+      }
+    }
+
+    const safeSearch = toSafeSearchPattern(search, 50);
+    if (safeSearch) {
+      query.name = { $regex: safeSearch, $options: "i" };
+    }
 
     const exams = await Exam.find(query);
 
