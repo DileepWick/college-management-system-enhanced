@@ -1,5 +1,14 @@
 const Exam = require("../models/exam.model");
 const ApiResponse = require("../utils/ApiResponse");
+const { pickFields } = require("../utils/pickFields");
+
+// timetableLink is only ever set from the uploaded file, never from the body
+const EXAM_FIELDS = ["name", "date", "semester", "examType", "totalMarks"];
+
+const {
+  toSafeSearchPattern,
+  sanitizeSearchInput,
+} = require("../utils/regexHelper");
 
 const getAllExamsController = async (req, res) => {
   try {
@@ -7,8 +16,24 @@ const getAllExamsController = async (req, res) => {
 
     let query = {};
 
-    if (semester) query.semester = semester;
-    if (examType) query.examType = examType;
+    if (semester) {
+      const sanitizedSemester = Number(semester);
+      if (!isNaN(sanitizedSemester)) {
+        query.semester = sanitizedSemester;
+      }
+    }
+
+    if (examType) {
+      const sanitizedType = sanitizeSearchInput(examType, 20);
+      if (sanitizedType) {
+        query.examType = sanitizedType;
+      }
+    }
+
+    const safeSearch = toSafeSearchPattern(search, 50);
+    if (safeSearch) {
+      query.name = { $regex: safeSearch, $options: "i" };
+    }
 
     const exams = await Exam.find(query);
 
@@ -24,7 +49,7 @@ const getAllExamsController = async (req, res) => {
 
 const addExamController = async (req, res) => {
   try {
-    const formData = req.body;
+    const formData = pickFields(req.body, EXAM_FIELDS);
     if (req.file) {
       formData.timetableLink = req.file.filename;
     }
@@ -37,7 +62,7 @@ const addExamController = async (req, res) => {
 
 const updateExamController = async (req, res) => {
   try {
-    const formData = req.body;
+    const formData = pickFields(req.body, EXAM_FIELDS);
     if (req.file) {
       formData.timetableLink = req.file.filename;
     }

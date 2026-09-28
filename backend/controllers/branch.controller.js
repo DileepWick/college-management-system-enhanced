@@ -1,16 +1,26 @@
 const Branch = require("../models/branch.model");
 const ApiResponse = require("../utils/ApiResponse");
+const { pickFields } = require("../utils/pickFields");
+
+const BRANCH_FIELDS = ["name", "branchId"];
+
+const { toSafeSearchPattern } = require("../utils/regexHelper");
 
 const getBranchController = async (req, res, next) => {
   try {
     const { search = "" } = req.query;
+    const safeSearch = toSafeSearchPattern(search, 50);
 
-    const branches = await Branch.find({
-      $or: [
-        { name: { $regex: search, $options: "i" } },
-        { branchId: { $regex: search, $options: "i" } },
-      ],
-    });
+    const query = safeSearch
+      ? {
+          $or: [
+            { name: { $regex: safeSearch, $options: "i" } },
+            { branchId: { $regex: safeSearch, $options: "i" } },
+          ],
+        }
+      : {};
+
+    const branches = await Branch.find(query);
     if (!branches || branches.length === 0) {
       return ApiResponse.error("No Branches Found", 404).send(res);
     }
@@ -35,7 +45,7 @@ const addBranchController = async (req, res, next) => {
       ).send(res);
     }
 
-    const newBranch = await Branch.create(req.body);
+    const newBranch = await Branch.create(pickFields(req.body, BRANCH_FIELDS));
     return ApiResponse.created(newBranch, "Branch Added Successfully!").send(
       res
     );
@@ -62,9 +72,11 @@ const updateBranchController = async (req, res, next) => {
       }
     }
 
-    let branch = await Branch.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    let branch = await Branch.findByIdAndUpdate(
+      req.params.id,
+      pickFields(req.body, BRANCH_FIELDS),
+      { new: true }
+    );
 
     if (!branch) {
       return ApiResponse.error("Branch Not Found!", 404).send(res);
