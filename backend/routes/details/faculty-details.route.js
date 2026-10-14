@@ -24,11 +24,10 @@ router.post(
   "/register",
   auth,
   authorize("admin"),
-  upload.single("file"),
+  uploadImage.single("file"),
   registerFacultyController
 );
 
-router.post("/register", uploadImage.single("file"), registerFacultyController);
 router.post("/login", loginLimiter, loginFacultyController);
 router.get(
   "/my-details",
@@ -42,14 +41,10 @@ router.patch(
   "/:id",
   auth,
   authorize("admin"),
-  upload.single("file"),
+  uploadImage.single("file"),
   updateFacultyController
 );
 router.delete("/:id", auth, authorize("admin"), deleteFacultyController);
-
-router.get("/", auth, getAllFacultyController);
-router.patch("/:id", auth, uploadImage.single("file"), updateFacultyController);
-router.delete("/:id", auth, deleteFacultyController);
 router.post("/forget-password", resetRequestLimiter, sendFacultyResetPasswordEmail);
 router.post("/update-password/:resetId", resetSubmitLimiter, updateFacultyPasswordHandler);
 router.post(

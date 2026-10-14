@@ -17,7 +17,7 @@ router.post(
   "/",
   auth,
   authorize("admin", "faculty"),
-  upload.single("file"),
+  uploadSchedule.single("file"),
   addTimetableController
 );
 
@@ -25,13 +25,9 @@ router.put(
   "/:id",
   auth,
   authorize("admin", "faculty"),
-  upload.single("file"),
+  uploadSchedule.single("file"),
   updateTimetableController
 );
-router.post("/", auth, uploadSchedule.single("file"), addTimetableController);
-
-router.put("/:id", auth, uploadSchedule.single("file"), updateTimetableController);
-
 router.delete(
   "/:id",
   auth,

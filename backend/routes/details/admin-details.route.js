@@ -29,13 +29,10 @@ router.patch(
   "/:id",
   auth,
   authorize("admin"),
-  upload.single("file"),
+  uploadImage.single("file"),
   updateDetailsController
 );
 router.delete("/:id", auth, authorize("admin"), deleteDetailsController);
-router.get("/", auth, getAllDetailsController);
-router.patch("/:id", auth, uploadImage.single("file"), updateDetailsController);
-router.delete("/:id", auth, deleteDetailsController);
 router.post("/forget-password", resetRequestLimiter, sendForgetPasswordEmail);
 router.post("/update-password/:resetId", resetSubmitLimiter, updatePasswordHandler);
 router.post(
