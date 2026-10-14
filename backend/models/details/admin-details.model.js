@@ -5,6 +5,7 @@ const adminDetailsSchema = new mongoose.Schema(
     employeeId: {
       type: Number,
       required: true,
+      unique: true,
     },
     firstName: {
       type: String,
@@ -87,6 +88,9 @@ const adminDetailsSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
+    },
+    googleId: {
+      type: String,
     },
   },
   { timestamps: true }

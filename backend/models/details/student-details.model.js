@@ -5,6 +5,7 @@ const studentDetailsSchema = new mongoose.Schema(
     enrollmentNo: {
       type: Number,
       required: true,
+      unique: true,
     },
     firstName: {
       type: String,
@@ -84,6 +85,9 @@ const studentDetailsSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
+    },
+    googleId: {
+      type: String,
     },
   },
   { timestamps: true }

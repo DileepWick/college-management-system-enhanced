@@ -12,9 +12,15 @@ const ResetPassword = new mongoose.Schema(
       required: true,
       enum: ["AdminDetails", "FacultyDetails", "StudentDetails"],
     },
-    resetToken: {
+    tokenHash: {
       type: String,
       required: true,
+      index: true,
+    },
+    expiresAt: {
+      type: Date,
+      required: true,
+      expires: 0, // MongoDB TTL index: automatically deletes expired tokens
     },
   },
   { timestamps: true }

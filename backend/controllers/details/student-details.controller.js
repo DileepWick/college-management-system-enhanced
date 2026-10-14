@@ -4,6 +4,38 @@ const bcrypt = require("bcryptjs");
 const ApiResponse = require("../../utils/ApiResponse");
 const jwt = require("jsonwebtoken");
 const sendResetMail = require("../../utils/SendMail");
+const {
+  generateSecureEnrollmentNo,
+  generateResetToken,
+  hashToken,
+} = require("../../utils/idGenerator");
+const { pickProfileFields } = require("../../utils/pickFields");
+
+// Fields an admin may set from the request body. Server-managed fields
+// (enrollmentNo, password, googleId, profile, _id, timestamps) are never copied.
+const STUDENT_PROFILE_FIELDS = [
+  "firstName",
+  "middleName",
+  "lastName",
+  "email",
+  "phone",
+  "semester",
+  "branchId",
+  "gender",
+  "dob",
+  "address",
+  "city",
+  "state",
+  "pincode",
+  "country",
+  "status",
+  "bloodGroup",
+];
+
+const {
+  toSafeSearchPattern,
+  sanitizeSearchInput,
+} = require("../../utils/regexHelper");
 
 const loginStudentController = async (req, res) => {
   try {
@@ -21,9 +53,11 @@ const loginStudentController = async (req, res) => {
       return ApiResponse.unauthorized("Invalid password").send(res);
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { userId: user._id, role: "student" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     return ApiResponse.success({ token }, "Login successful").send(res);
   } catch (error) {
@@ -52,16 +86,32 @@ const getAllDetailsController = async (req, res) => {
 
 const registerStudentController = async (req, res) => {
   try {
+    const { email, phone } = req.body;
     const profile = req.file.filename;
 
-    const enrollmentNo = Math.floor(100000 + Math.random() * 900000);
-    const email = `${enrollmentNo}@gmail.com`;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return ApiResponse.badRequest("Invalid email format").send(res);
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      return ApiResponse.badRequest("Phone number must be 10 digits").send(res);
+    }
+
+    const existing = await studentDetails.findOne({
+      $or: [{ phone }, { email }],
+    });
+    if (existing) {
+      return ApiResponse.conflict(
+        "Student with these details already exists"
+      ).send(res);
+    }
+
+    const enrollmentNo = generateSecureEnrollmentNo();
 
     const user = await studentDetails.create({
-      ...req.body,
+      ...pickProfileFields(req.body, STUDENT_PROFILE_FIELDS),
       profile,
       password: "student123",
-      email,
       enrollmentNo,
     });
 
@@ -102,8 +152,8 @@ const updateDetailsController = async (req, res) => {
       return ApiResponse.badRequest("Student ID is required").send(res);
     }
 
-    const updateData = { ...req.body };
-    const { email, phone, password, enrollmentNo } = updateData;
+    const updateData = pickProfileFields(req.body, STUDENT_PROFILE_FIELDS);
+    const { email, phone } = updateData;
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return ApiResponse.badRequest("Invalid email format").send(res);
@@ -111,12 +161,6 @@ const updateDetailsController = async (req, res) => {
 
     if (phone && !/^\d{10}$/.test(phone)) {
       return ApiResponse.badRequest("Phone number must be 10 digits").send(res);
-    }
-
-    if (password && password.length < 8) {
-      return ApiResponse.badRequest(
-        "Password must be at least 8 characters long"
-      ).send(res);
     }
 
     if (phone) {
@@ -139,24 +183,14 @@ const updateDetailsController = async (req, res) => {
       if (existingStudent) {
         return ApiResponse.conflict("Email already in use").send(res);
       }
-    }
 
-    if (enrollmentNo) {
-      const existingStudent = await studentDetails.findOne({
-        _id: { $ne: req.params.id },
-        enrollmentNo: enrollmentNo,
-      });
-
-      if (existingStudent) {
-        return ApiResponse.conflict("Enrollment number already in use").send(
-          res
-        );
+      // A new email must be re-linked to its own Google account
+      const current = await studentDetails
+        .findById(req.params.id)
+        .select("email");
+      if (current && current.email !== email) {
+        updateData.$unset = { googleId: 1 };
       }
-    }
-
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
     }
 
     if (req.file) {
@@ -215,33 +249,35 @@ const sendForgetPasswordEmail = async (req, res) => {
 
     const user = await studentDetails.findOne({ email });
 
+    // OWASP recommendation: Prevent user enumeration with generic response
     if (!user) {
-      return ApiResponse.notFound("No Student Found").send(res);
+      return ApiResponse.success(
+        null,
+        "If an account with that email exists, a password reset link has been sent."
+      ).send(res);
     }
-    const resetTkn = jwt.sign(
-      {
-        _id: user._id,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "10m",
-      }
-    );
+
+    const { rawToken, tokenHash } = generateResetToken();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await resetToken.deleteMany({
       type: "StudentDetails",
       userId: user._id,
     });
 
-    const resetId = await resetToken.create({
-      resetToken: resetTkn,
+    await resetToken.create({
+      tokenHash,
+      expiresAt,
       type: "StudentDetails",
       userId: user._id,
     });
 
-    await sendResetMail(user.email, resetId._id, "student");
+    await sendResetMail(user.email, rawToken, "student");
 
-    return ApiResponse.success(null, "Reset Mail Send Successful").send(res);
+    return ApiResponse.success(
+      null,
+      "If an account with that email exists, a password reset link has been sent."
+    ).send(res);
   } catch (error) {
     console.error("Send Reset Mail Error: ", error);
     return ApiResponse.internalServerError().send(res);
@@ -252,40 +288,47 @@ const updatePasswordHandler = async (req, res) => {
   try {
     const { resetId } = req.params;
     const { password } = req.body;
+
     if (!resetId || !password) {
-      return ApiResponse.badRequest("Password and ResetId is Required").send(
-        res
-      );
+      return ApiResponse.badRequest(
+        "Password and Reset Token are required"
+      ).send(res);
     }
 
-    const resetTkn = await resetToken.findById(resetId);
-
-    if (!resetTkn) {
-      return ApiResponse.notFound("No Reset Request Found").send(res);
+    if (password.length < 8) {
+      return ApiResponse.badRequest(
+        "Password must be at least 8 characters long"
+      ).send(res);
     }
 
-    const verifyToken = await jwt.verify(
-      resetTkn.resetToken,
-      process.env.JWT_SECRET
-    );
+    const tokenHash = hashToken(resetId);
 
-    if (!verifyToken) {
-      return ApiResponse.notFound("Token Expired").send(res);
+    const resetRecord = await resetToken.findOne({
+      tokenHash,
+      type: "StudentDetails",
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!resetRecord) {
+      return ApiResponse.badRequest(
+        "Invalid or expired password reset link"
+      ).send(res);
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    await studentDetails.findByIdAndUpdate(verifyToken._id, {
+    await studentDetails.findByIdAndUpdate(resetRecord.userId, {
       password: hashedPassword,
     });
 
+    // Single-use: delete used token immediately
     await resetToken.deleteMany({
       type: "StudentDetails",
-      userId: verifyToken._id,
+      userId: resetRecord.userId,
     });
 
-    return ApiResponse.success(null, "Password Updated!").send(res);
+    return ApiResponse.success(null, "Password Updated Successfully!").send(res);
   } catch (error) {
     console.error("Update Password Error: ", error);
     return ApiResponse.internalServerError().send(res);
@@ -302,23 +345,35 @@ const searchStudentsController = async (req, res) => {
     }
 
     if (enrollmentNo) {
-      query.enrollmentNo = enrollmentNo;
+      const sanitizedEnrollment = Number(enrollmentNo);
+      if (!isNaN(sanitizedEnrollment)) {
+        query.enrollmentNo = sanitizedEnrollment;
+      }
     }
 
     if (name) {
-      query.$or = [
-        { firstName: { $regex: name, $options: "i" } },
-        { middleName: { $regex: name, $options: "i" } },
-        { lastName: { $regex: name, $options: "i" } },
-      ];
+      const safeNamePattern = toSafeSearchPattern(name, 50);
+      if (safeNamePattern) {
+        query.$or = [
+          { firstName: { $regex: safeNamePattern, $options: "i" } },
+          { middleName: { $regex: safeNamePattern, $options: "i" } },
+          { lastName: { $regex: safeNamePattern, $options: "i" } },
+        ];
+      }
     }
 
     if (semester) {
-      query.semester = semester;
+      const sanitizedSemester = Number(semester);
+      if (!isNaN(sanitizedSemester)) {
+        query.semester = sanitizedSemester;
+      }
     }
 
     if (branch) {
-      query.branchId = branch;
+      const sanitizedBranch = sanitizeSearchInput(branch, 50);
+      if (sanitizedBranch) {
+        query.branchId = sanitizedBranch;
+      }
     }
 
     const students = await studentDetails
