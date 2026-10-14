@@ -16,19 +16,16 @@ router.post(
   "/",
   auth,
   authorize("faculty"),
-  upload.single("file"),
+  uploadDocument.single("file"),
   addMaterialController
 );
 router.put(
   "/:id",
   auth,
   authorize("faculty"),
-  upload.single("file"),
+  uploadDocument.single("file"),
   updateMaterialController
 );
 router.delete("/:id", auth, authorize("faculty"), deleteMaterialController);
-router.post("/", auth, uploadDocument.single("file"), addMaterialController);
-router.put("/:id", auth, uploadDocument.single("file"), updateMaterialController);
-router.delete("/:id", auth, deleteMaterialController);
 
 module.exports = router;
